@@ -17,14 +17,17 @@ st.set_page_config(
 # === Fonctions de chargement avec cache ===
 @st.cache_data
 def load_models():
-    """Charge tous les modèles et le scaler"""
-    return {
-        "Random Forest": joblib.load("random_forest_model.pkl"),
-        "XGBoost": joblib.load("xgboost_model.pkl"),
-        "Linear Regression": joblib.load("linear_regression_model.pkl"),
-        "Neural Network": joblib.load("mlp_model.pkl"),
-        "SVM": joblib.load("svm_model.pkl")
-    }, joblib.load("scaler.pkl")
+    try:
+        return {
+            "Random Forest": joblib.load("random_forest_model.pkl"),
+            "XGBoost": joblib.load("xgboost_model.pkl"),
+            "Linear Regression": joblib.load("linear_regression_model.pkl"),
+            "Neural Network": joblib.load("mlp_model.pkl"),
+            "SVM": joblib.load("svm_model.pkl")
+        }, joblib.load("scaler.pkl")
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des modèles : {e}")
+        raise e
 
 @st.cache_data
 def load_data():
