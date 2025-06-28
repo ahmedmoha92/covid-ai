@@ -6,6 +6,7 @@ from streamlit_folium import st_folium
 import joblib
 from datetime import datetime
 import plotly.express as px
+from fpdf import FPDF
 
 # === Configuration de la page ===
 st.set_page_config(
@@ -68,8 +69,6 @@ def clean_data(df):
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace(',', '.')
             df[col] = pd.to_numeric(df[col], errors='coerce')
-
-    df = df.dropna()
 
     return df
 
@@ -234,11 +233,45 @@ with tabs[1]:
     # Export
     csv = summary_df.to_csv(index=False).encode("utf-8")
     st.download_button(
-        "📥 Télécharger les prédictions (CSV)",
+        "Télécharger les prédictions (CSV)",
         csv,
         f"predictions_covid_{datetime.now().strftime('%Y%m%d')}.csv",
         "text/csv"
     )
+
+    if st.button("Générer rapport PDF"):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+
+        # Titre principal
+        pdf.set_text_color(0, 0, 128)
+        pdf.set_font("Arial", "B", 16)
+        pdf.cell(0, 10, "Rapport Épidémiologique COVID-19", ln=True, align='C')
+
+        pdf.set_font("Arial", size=12)
+        pdf.set_text_color(0, 0, 0)
+        pdf.ln(10)
+        pdf.cell(0, 10, f"Date du rapport : {datetime.now().strftime('%d/%m/%Y')}", ln=True)
+        pdf.ln(5)
+
+        # Contenu des prédictions régionales
+        for index, row in latest.iterrows():
+            region_name = row.get("Region_Name", "Inconnue")
+            pred = int(row.get("prediction", 0))
+            statut = row.get("Statut", "N/A").replace("🔴", "Alerte").replace("🟡", "Modéré").replace("🟢", "Stable")
+            date_str = row.get("date").strftime("%d/%m/%Y") if pd.notnull(row.get("date")) else "Non spécifiée"
+
+            pdf.cell(0, 10, f"{region_name} : {pred} cas prédits - Statut {statut} - Données du {date_str}", ln=True)
+
+        # Génération et export
+        pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        st.download_button(
+            label="Télécharger le rapport (PDF)",
+            data=pdf_bytes,
+            file_name=f"rapport_epidemique_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf"
+        )
 
 # === Onglet 3 : Évolution temporelle ===
 with tabs[2]:
@@ -265,18 +298,6 @@ with tabs[2]:
         )
         fig.update_layout(height=500, legend_title_text='Région')
         st.plotly_chart(fig, use_container_width=True)
-
-        st.subheader("Vue agrégée - Contribution de chaque région")
-        fig2 = px.area(
-            df_filtered,
-            x='date',
-            y=TARGET,
-            color='Region_Name',
-            title="Contribution de chaque région aux cas totaux (parmi la sélection)"
-        )
-        fig2.update_layout(height=500, legend_title_text='Région')
-        # *** CORRECTION : Affichage du graphique fig2 qui était manquant ***
-        st.plotly_chart(fig2, use_container_width=True)
     else:
         # *** AMÉLIORATION : Message si aucune région n'est sélectionnée ***
         st.info("Veuillez sélectionner au moins une région pour afficher les graphiques.")
@@ -337,7 +358,7 @@ with tabs[3]:
             o3 = env_cols[0].number_input("O3 (µg/m³)", 0.0, 200.0, 50.0, format="%.1f")
 
             st.markdown("#### 💉 Vaccination")
-            vaccination = st.number_input("Doses administrées (total)", 0, 80000000, 5000000)
+            vaccination = st.number_input("Doses administrées (total)", 0, 80000000, 5000)
 
             submitted = st.form_submit_button("Lancer la prédiction")
 
@@ -366,12 +387,6 @@ with tabs[3]:
                     prog_value = min(pred / seuil_alerte if seuil_alerte > 0 else 1.0, 1.0)
                     st.progress(prog_value, text=f"{prog_value*100:.1f}% du seuil d'alerte ({int(seuil_alerte):,} cas)")
                     
-                    if pred > seuil_alerte:
-                        st.warning("#### Recommandations pour un niveau d'alerte élevé :\n- Envisager le renforcement des mesures sanitaires (masques, distanciation).\n- Lancer des campagnes de communication pour limiter les rassemblements.\n- Accélérer la vaccination de rappel.")
-                    elif pred > seuil_alerte * 0.5:
-                        st.info("#### Recommandations pour un niveau modéré :\n- Renforcer la surveillance épidémiologique.\n- Promouvoir activement la vaccination et les gestes barrières.\n- Sensibiliser les populations sur les risques.")
-                    else:
-                        st.success("#### Situation sous contrôle :\n- Maintenir la surveillance et la communication préventive.\n- Continuer les efforts de vaccination.")
 
                 except Exception as e:
                     st.error(f"Erreur lors de la prédiction de la simulation : {str(e)}")
