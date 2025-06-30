@@ -69,7 +69,7 @@ def clean_data(df):
         if col in df.columns:
             df[col] = df[col].astype(str).str.replace(',', '.')
             df[col] = pd.to_numeric(df[col], errors='coerce')
-
+    df = df.dropna()
     return df
 
 with st.spinner("Préparation des données..."):
